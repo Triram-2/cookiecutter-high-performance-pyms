@@ -6,6 +6,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 
 from core.config import AppConfig
+from core.metrics import statsd_client
 from .models import TaskPayload
 from .repository import TaskRepository
 from .service import TaskService
@@ -29,5 +30,8 @@ async def create_task(request: Request, config: AppConfig) -> Response:
         repo = TaskRepository(redis, config.redis_stream_name)
         service = TaskService(repo)
         await service.enqueue(payload, trace_id=trace_id, span_id=span_id)
+        if statsd_client is not None:
+            size = await redis.xlen(config.redis_stream_name)
+            statsd_client.gauge("task_queue_size", size)
 
     return Response(status_code=202)
