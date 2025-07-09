@@ -1,5 +1,7 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from .logging_config import setup_logging
+
 
 class AppConfig(BaseSettings):
     """Application configuration loaded from environment variables."""
@@ -35,6 +37,12 @@ class AppConfig(BaseSettings):
         env_file=".env",
         env_file_encoding="utf-8",
     )
+
+
+def configure_logging() -> None:
+    """Configure application logging."""
+
+    setup_logging()
 
 
 def get_config() -> AppConfig:

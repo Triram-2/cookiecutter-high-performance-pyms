@@ -1,23 +1,39 @@
-from logging.config import dictConfig
+"""Logging configuration for the application."""
+
+from __future__ import annotations
+
+import logging
+import sys
+
+from loguru import logger
+from pythonjsonlogger import jsonlogger
 
 
-LOGGING_CONFIG = {
-    "version": 1,
-    "formatters": {
-        "default": {
-            "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-        }
-    },
-    "handlers": {
-        "console": {
-            "class": "logging.StreamHandler",
-            "formatter": "default",
-        }
-    },
-    "root": {"handlers": ["console"], "level": "INFO"},
-}
+class LokiJsonFormatter(jsonlogger.JsonFormatter):
+    """JSON formatter limited to the required fields."""
+
+    def add_fields(
+        self, log_record: dict, record: logging.LogRecord, message_dict: dict
+    ) -> None:  # type: ignore[override]
+        super().add_fields(log_record, record, message_dict)
+        allowed = {"timestamp", "level", "message", "task_id", "trace_id"}
+        for key in list(log_record.keys()):
+            if key not in allowed:
+                log_record.pop(key)
 
 
-def configure_logging() -> None:
-    """Apply logging configuration."""
-    dictConfig(LOGGING_CONFIG)
+def setup_logging() -> None:
+    """Configure Loguru with JSON output for Loki."""
+
+    logger.remove()
+
+    formatter = LokiJsonFormatter(
+        fmt="%(asctime)s %(levelname)s %(message)s %(task_id)s %(trace_id)s",
+        rename_fields={"asctime": "timestamp", "levelname": "level"},
+    )
+
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setFormatter(formatter)
+
+    logging.basicConfig(handlers=[handler], level=logging.INFO, force=True)
+    logger.add(handler, level="INFO", enqueue=False, format="{message}")

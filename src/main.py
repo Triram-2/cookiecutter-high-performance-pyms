@@ -3,13 +3,11 @@ from starlette.responses import JSONResponse
 from starlette.routing import Route
 import uvicorn
 
-from core.config import AppConfig
-from core.logging_config import configure_logging
+from core.config import AppConfig, configure_logging
 
 
 def create_app() -> Starlette:
     """Create Starlette application."""
-    configure_logging()
 
     async def healthcheck(request) -> JSONResponse:
         return JSONResponse({"status": "ok"}, status_code=202)
@@ -18,6 +16,7 @@ def create_app() -> Starlette:
 
 
 config = AppConfig()
+configure_logging()
 app = create_app()
 
 if __name__ == "__main__":
