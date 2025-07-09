@@ -256,8 +256,8 @@ wheels = [
 ]
 
 [[package]]
-name = "cookiecutter-high-performance-pyms"
-version = "0.1.0"
+name = "{{ cookiecutter.project_slug }}"
+version = "{{ cookiecutter.service_version }}"
 source = { editable = "." }
 dependencies = [
     { name = "aioredis" },
