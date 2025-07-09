@@ -11,10 +11,15 @@ from starlette.requests import Request
 
 from datetime import datetime
 from redis.asyncio import Redis
+from loguru import logger
+import asyncio
+import contextlib
 
 from core.config import AppConfig, configure_logging
 from pydantic import BaseModel
 from tasks.api import create_task
+from service.task_processor import process_tasks
+from tasks.models import TaskMessage
 
 
 class HealthResponse(BaseModel):
@@ -64,6 +69,26 @@ def create_app() -> Starlette:
 config = AppConfig()
 configure_logging()
 app = create_app()
+
+
+async def _log_task(message: TaskMessage) -> None:
+    """Default task handler that logs the task."""
+
+    logger.bind(task_id=message.task_id, trace_id=message.trace_context.trace_id).info(
+        "processed"
+    )
+
+
+@app.on_event("startup")
+async def _start_processor() -> None:
+    app.state.processor_task = asyncio.create_task(process_tasks(config, _log_task))
+
+
+@app.on_event("shutdown")
+async def _stop_processor() -> None:
+    app.state.processor_task.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await app.state.processor_task
 
 
 def _get_workers(cfg: AppConfig) -> int:
