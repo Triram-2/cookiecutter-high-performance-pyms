@@ -44,7 +44,8 @@ async def test_should_process_task_asynchronously() -> None:
         handled.append(msg.task_id)
 
     with patch("service.task_processor.Redis.from_url", return_value=redis_mock):
-        task = asyncio.create_task(process_tasks(config, handler))
+        shutdown_event = asyncio.Event()
+        task = asyncio.create_task(process_tasks(config, handler, shutdown_event))
         await asyncio.sleep(0)
         task.cancel()
         with contextlib.suppress(asyncio.CancelledError):

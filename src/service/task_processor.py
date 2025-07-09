@@ -13,7 +13,9 @@ from tasks.models import TaskMessage
 AsyncHandler = Callable[[TaskMessage], Awaitable[None]]
 
 
-async def process_tasks(config: AppConfig, handler: AsyncHandler) -> None:
+async def process_tasks(
+    config: AppConfig, handler: AsyncHandler, shutdown_event: asyncio.Event
+) -> None:
     """Continuously read and process tasks from Redis Streams."""
 
     stream = config.redis_stream_name
@@ -30,7 +32,7 @@ async def process_tasks(config: AppConfig, handler: AsyncHandler) -> None:
 
         logger.info(f"Connected to Redis stream {stream}")
 
-        while True:
+        while not shutdown_event.is_set():
             try:
                 records = await redis.xreadgroup(
                     group,

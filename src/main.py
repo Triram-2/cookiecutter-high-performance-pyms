@@ -2,6 +2,8 @@
 
 from multiprocessing import cpu_count
 
+import os
+import signal
 import uvicorn
 import uvloop
 from starlette.applications import Starlette
@@ -70,6 +72,8 @@ config = AppConfig()
 configure_logging()
 app = create_app()
 
+shutdown_event = asyncio.Event()
+
 
 async def _log_task(message: TaskMessage) -> None:
     """Default task handler that logs the task."""
@@ -81,14 +85,19 @@ async def _log_task(message: TaskMessage) -> None:
 
 @app.on_event("startup")
 async def _start_processor() -> None:
-    app.state.processor_task = asyncio.create_task(process_tasks(config, _log_task))
+    app.state.processor_task = asyncio.create_task(
+        process_tasks(config, _log_task, shutdown_event)
+    )
 
 
 @app.on_event("shutdown")
 async def _stop_processor() -> None:
-    app.state.processor_task.cancel()
-    with contextlib.suppress(asyncio.CancelledError):
-        await app.state.processor_task
+    logger.info("graceful shutdown")
+    shutdown_event.set()
+    try:
+        await asyncio.wait_for(app.state.processor_task, config.shutdown_timeout)
+    except asyncio.TimeoutError:
+        os.kill(os.getpid(), signal.SIGKILL)
 
 
 def _get_workers(cfg: AppConfig) -> int:
@@ -99,12 +108,26 @@ def _get_workers(cfg: AppConfig) -> int:
 
 if __name__ == "__main__":
     loop_type = "uvloop" if config.uvloop_enabled else "asyncio"
+
+    async def _serve() -> None:
+        config_uvicorn = uvicorn.Config(
+            "main:app",
+            host=config.service_host,
+            port=config.service_port,
+            loop=loop_type,
+            workers=_get_workers(config),
+        )
+        server = uvicorn.Server(config_uvicorn)
+
+        loop = asyncio.get_running_loop()
+
+        def _sigterm_handler() -> None:
+            shutdown_event.set()
+            server.handle_exit(signal.SIGTERM, None)
+
+        loop.add_signal_handler(signal.SIGTERM, _sigterm_handler)
+        await server.serve()
+
     if config.uvloop_enabled:
         uvloop.install()
-    uvicorn.run(
-        "main:app",
-        host=config.service_host,
-        port=config.service_port,
-        loop=loop_type,
-        workers=_get_workers(config),
-    )
+    asyncio.run(_serve())
