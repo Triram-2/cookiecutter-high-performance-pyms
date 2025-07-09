@@ -4,8 +4,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class AppConfig(BaseSettings):
     """Application configuration loaded from environment variables."""
 
-    service_name: str = "generated-service"
-    service_version: str = "1.0.0"
+    service_name: str = "{{ cookiecutter.project_name }}"
+    service_version: str = "{{ cookiecutter.service_version }}"
     service_port: int = 8000
     service_host: str = "0.0.0.0"
 
@@ -19,7 +19,7 @@ class AppConfig(BaseSettings):
     statsd_prefix: str = "microservice"
 
     jaeger_endpoint: str = "http://localhost:14268/api/traces"
-    jaeger_service_name: str = "generated-service"
+    jaeger_service_name: str = "{{ cookiecutter.project_name }}"
 
     loki_endpoint: str = "http://localhost:3100/loki/api/v1/push"
 
