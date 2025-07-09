@@ -5,7 +5,7 @@ from multiprocessing import cpu_count
 import uvicorn
 import uvloop
 from starlette.applications import Starlette
-from starlette.responses import JSONResponse
+from starlette.responses import JSONResponse, Response
 from starlette.routing import Route
 from starlette.requests import Request
 
@@ -14,6 +14,7 @@ from redis.asyncio import Redis
 
 from core.config import AppConfig, configure_logging
 from pydantic import BaseModel
+from tasks.api import create_task
 
 
 class HealthResponse(BaseModel):
@@ -49,7 +50,15 @@ def create_app() -> Starlette:
         status_code = 200 if redis_connected else 503
         return JSONResponse(response.model_dump(), status_code=status_code)
 
-    return Starlette(routes=[Route("/health", healthcheck, methods=["GET"])])
+    async def tasks(request: Request) -> Response:
+        return await create_task(request, config)
+
+    return Starlette(
+        routes=[
+            Route("/health", healthcheck, methods=["GET"]),
+            Route("/tasks", tasks, methods=["POST"]),
+        ]
+    )
 
 
 config = AppConfig()
