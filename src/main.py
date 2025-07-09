@@ -7,15 +7,47 @@ import uvloop
 from starlette.applications import Starlette
 from starlette.responses import JSONResponse
 from starlette.routing import Route
+from starlette.requests import Request
+
+from datetime import datetime
+from redis.asyncio import Redis
 
 from core.config import AppConfig, configure_logging
+from pydantic import BaseModel
+
+
+class HealthResponse(BaseModel):
+    """API response schema for health checks."""
+
+    status: str
+    timestamp: str
+    redis_connected: bool
+    version: str
 
 
 def create_app() -> Starlette:
     """Create Starlette application."""
 
-    async def healthcheck(request) -> JSONResponse:
-        return JSONResponse({"status": "ok"}, status_code=202)
+    async def healthcheck(request: Request) -> JSONResponse:
+        """Return health information about the service."""
+
+        redis_connected = False
+        try:
+            async with Redis.from_url(config.redis_url) as redis:
+                await redis.ping()
+                redis_connected = True
+        except Exception:
+            redis_connected = False
+
+        status = "healthy" if redis_connected else "unhealthy"
+        response = HealthResponse(
+            status=status,
+            timestamp=datetime.utcnow().isoformat(),
+            redis_connected=redis_connected,
+            version=config.service_version,
+        )
+        status_code = 200 if redis_connected else 503
+        return JSONResponse(response.model_dump(), status_code=status_code)
 
     return Starlette(routes=[Route("/health", healthcheck, methods=["GET"])])
 
