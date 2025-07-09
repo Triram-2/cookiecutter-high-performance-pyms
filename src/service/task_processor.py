@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import asyncio
+import time
 from typing import Awaitable, Callable
 
 from loguru import logger
 from redis.asyncio import Redis
 
 from core.config import AppConfig
+from core.metrics import statsd_client
+from core.tracing import tracer
 from tasks.models import TaskMessage
 
 
@@ -57,7 +60,12 @@ async def process_tasks(
 
                         for attempt, delay in enumerate((0.1, 0.2, 0.4), start=1):
                             try:
-                                await handler(task)
+                                start = time.perf_counter()
+                                with tracer.start_as_current_span("task_processing_span"):
+                                    await handler(task)
+                                if statsd_client is not None:
+                                    elapsed = int((time.perf_counter() - start) * 1000)
+                                    statsd_client.timing("task_processing_time", elapsed)
                                 await redis.xack(stream, group, message_id)
                                 await redis.xdel(stream, message_id)
                                 break

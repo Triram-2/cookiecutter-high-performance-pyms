@@ -7,6 +7,7 @@ import signal
 import uvicorn
 import uvloop
 from starlette.applications import Starlette
+from starlette.middleware import Middleware
 from starlette.responses import JSONResponse, Response
 from starlette.routing import Route
 from starlette.requests import Request
@@ -18,6 +19,8 @@ import asyncio
 import contextlib
 
 from core.config import AppConfig, configure_logging
+from core.metrics import StatsDMiddleware, init_metrics
+from core.tracing import TracingMiddleware, configure_tracing, tracer
 from pydantic import BaseModel
 from tasks.api import create_task
 from service.task_processor import process_tasks
@@ -35,6 +38,9 @@ class HealthResponse(BaseModel):
 
 def create_app() -> Starlette:
     """Create Starlette application."""
+
+    init_metrics(config)
+    configure_tracing(config)
 
     async def healthcheck(request: Request) -> JSONResponse:
         """Return health information about the service."""
@@ -60,11 +66,17 @@ def create_app() -> Starlette:
     async def tasks(request: Request) -> Response:
         return await create_task(request, config)
 
+    middleware = [
+        Middleware(StatsDMiddleware),
+        Middleware(TracingMiddleware),
+    ]
+
     return Starlette(
         routes=[
             Route("/health", healthcheck, methods=["GET"]),
             Route("/tasks", tasks, methods=["POST"]),
-        ]
+        ],
+        middleware=middleware,
     )
 
 

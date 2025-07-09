@@ -37,3 +37,8 @@ def setup_logging() -> None:
 
     logging.basicConfig(handlers=[handler], level=logging.INFO, force=True)
     logger.add(handler, level="INFO", enqueue=False, format="{message}")
+
+    file_handler = logging.FileHandler("loki.log")
+    file_handler.setFormatter(formatter)
+    logging.getLogger().addHandler(file_handler)
+    logger.add(file_handler, level="INFO", enqueue=False, format="{message}")
